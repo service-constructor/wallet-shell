@@ -1,0 +1,31 @@
+{
+  "name": "service-constructor-cabinet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal cabinet for Service Constructor: register/login, view accounts and balances, and host mini-apps as a wallet shell.",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n bff,web -c blue,green \"npm:bff\" \"npm:web\"",
+    "web": "vite",
+    "bff": "tsx watch server/index.ts",
+    "build": "tsc -b && vite build"
+  },
+  "dependencies": {
+    "libsodium-wrappers": "^0.8.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/libsodium-wrappers": "^0.7.14",
+    "@types/node": "^20.17.10",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "express": "^4.21.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
