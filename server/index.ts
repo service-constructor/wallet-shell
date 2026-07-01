@@ -11,6 +11,8 @@
 //   POST /api/deposit   { memo, ref, amount } -> { applied }    (demo funding)
 import express, { type Request, type Response } from "express";
 import sodium from "libsodium-wrappers";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const PORT = Number(process.env.CABINET_PORT ?? 4200);
 const AUTH_BASE = process.env.AUTH_BASE_URL ?? "http://localhost:8090";
@@ -210,6 +212,20 @@ app.post("/api/open-service", async (req, res) => {
 
   res.json({ serviceId, encUserId });
 });
+
+// In production (single-container deploy) the BFF also serves the built SPA so
+// /api/* and the static assets are same-origin. In dev this stays off and Vite
+// serves the SPA, proxying /api to this BFF. Enable with SERVE_STATIC=1.
+if (process.env.SERVE_STATIC === "1") {
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const dist = process.env.STATIC_DIR ?? path.resolve(dir, "../dist");
+  app.use(express.static(dist));
+  // SPA fallback: any non-/api GET returns index.html.
+  app.get(/^\/(?!api\/).*/, (_req, res) => {
+    res.sendFile(path.join(dist, "index.html"));
+  });
+  console.log(`serving static SPA from ${dist}`);
+}
 
 app.listen(PORT, () => {
   console.log(`cabinet BFF listening on :${PORT} (auth=${AUTH_BASE}, platform=${PLATFORM_BASE})`);
