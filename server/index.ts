@@ -101,16 +101,29 @@ app.get("/api/accounts", async (req, res) => {
   res.status(upstream.status).json(upstream.ok ? { accounts: data.accounts ?? [] } : { error: "failed" });
 });
 
+// currencies is the reference catalog (id, code, symbol, is_real). The cabinet
+// uses it to label accounts (DEV/GRAM) and to know which are mock-fundable.
+app.get("/api/currencies", async (req, res) => {
+  const token = requireSession(req, res);
+  if (!token) return;
+  const upstream = await authFetch("/v1/currencies", { method: "GET" }, token);
+  const data = (await upstream.json()) as { currencies?: unknown };
+  res.status(upstream.status).json(upstream.ok ? { currencies: data.currencies ?? [] } : { error: "failed" });
+});
+
 // Demo funding: credit the user's own account by its deposit memo. In production
 // this is driven by an on-chain watcher, not the cabinet.
 app.post("/api/deposit", async (req, res) => {
   const token = requireSession(req, res);
   if (!token) return;
-  const { memo, ref, amount } = req.body ?? {};
+  const { memo, ref, amount, currencyId } = req.body ?? {};
   if (!memo || !ref || !amount) return res.status(400).json({ error: "memo, ref, amount required" });
+  // Each account has its own memo AND currency; credit the currency the caller
+  // named (default 1/DEV for back-compat). The auth service rejects a mock
+  // deposit for a real currency, so this only ever funds test money.
   const upstream = await authFetch("/v1/auth/deposits", {
     method: "POST",
-    body: JSON.stringify({ memo, ref, amount, currencyId: 1 }),
+    body: JSON.stringify({ memo, ref, amount, currencyId: Number(currencyId ?? 1) }),
   }, token);
   const data = await upstream.json();
   res.status(upstream.status).json(data);

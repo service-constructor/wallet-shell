@@ -18,6 +18,17 @@ export interface Account {
   held: string;
 }
 
+// Currency is one entry in the ledger's reference catalog, used to label
+// accounts and tell test money (isReal=false, mock-fundable) from real money.
+export interface Currency {
+  id: number;
+  code: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  isReal: boolean;
+}
+
 // App is one entry in the shell's app list — the public ServiceInfo the
 // platform returns for an ACTIVE service. Display fields may be empty; the UI
 // falls back to defaults.
@@ -56,9 +67,10 @@ export const api = {
   logout: () => post<{ ok: true }>("/api/logout"),
   me: () => get<{ user: User }>("/api/me"),
   accounts: () => get<{ accounts: Account[] }>("/api/accounts"),
+  currencies: () => get<{ currencies: Currency[] }>("/api/currencies"),
   apps: () => get<{ apps: App[] }>("/api/apps"),
-  deposit: (memo: string, ref: string, amount: string) =>
-    post<{ userId: string; applied: boolean }>("/api/deposit", { memo, ref, amount }),
+  deposit: (memo: string, ref: string, amount: string, currencyId: number) =>
+    post<{ userId: string; applied: boolean }>("/api/deposit", { memo, ref, amount, currencyId }),
   prepare: (quote: unknown) => post<PreparePreview>("/api/prepare", { quote }),
   pay: (quote: unknown, selectedWalletId: string) =>
     post<PayResult>("/api/pay", { quote, selectedWalletId }),

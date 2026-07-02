@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Account, type App as AppInfo, type User } from "./api";
+import { api, type Account, type App as AppInfo, type Currency, type User } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import { Accounts } from "./Accounts";
 import { MiniAppHost } from "./MiniAppHost";
@@ -14,6 +14,7 @@ const FALLBACK_MINIAPP_URL = import.meta.env.VITE_MINIAPP_URL ?? "http://localho
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [booting, setBooting] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +26,15 @@ export function App() {
       setAccounts((await api.accounts()).accounts);
     } catch {
       /* balances are best-effort */
+    }
+  }, []);
+
+  // Load the currency catalog (rarely changes) so accounts can be labelled.
+  const loadCurrencies = useCallback(async () => {
+    try {
+      setCurrencies((await api.currencies()).currencies);
+    } catch {
+      /* catalog is best-effort; UI falls back to the raw currency id */
     }
   }, []);
 
@@ -43,14 +53,14 @@ export function App() {
       try {
         const { user } = await api.me();
         setUser(user);
-        await Promise.all([loadAccounts(), loadApps()]);
+        await Promise.all([loadAccounts(), loadCurrencies(), loadApps()]);
       } catch {
         /* not signed in */
       } finally {
         setBooting(false);
       }
     })();
-  }, [loadAccounts, loadApps]);
+  }, [loadAccounts, loadCurrencies, loadApps]);
 
   const onAuthed = async (u: User) => {
     setError(null);
@@ -62,6 +72,7 @@ export function App() {
     await api.logout();
     setUser(null);
     setAccounts([]);
+    setCurrencies([]);
     setApps([]);
   };
 
@@ -103,7 +114,7 @@ export function App() {
           <AuthScreen onAuthed={onAuthed} onError={setError} />
         ) : (
           <>
-            <Accounts user={user} accounts={accounts} onRefresh={loadAccounts} />
+            <Accounts user={user} accounts={accounts} currencies={currencies} onRefresh={loadAccounts} />
             <section className="apps">
               <h2>Apps</h2>
               {apps.length === 0 ? (
