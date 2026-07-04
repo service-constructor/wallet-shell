@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Account, type App as AppInfo, type Currency, type User } from "./api";
+import { api, type Account, type App as AppInfo, type Currency, type Order, type User } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import { Accounts } from "./Accounts";
+import { Orders } from "./Orders";
 import { MiniAppHost } from "./MiniAppHost";
 
 // Fallback mini-app URL for a catalog entry that has no miniapp_url configured
@@ -16,8 +17,11 @@ export function App() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [apps, setApps] = useState<AppInfo[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [booting, setBooting] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Which dashboard tab is showing.
+  const [tab, setTab] = useState<"home" | "orders">("home");
   // When set, this app is running full-screen in the host.
   const [openApp, setOpenApp] = useState<AppInfo | null>(null);
 
@@ -47,25 +51,34 @@ export function App() {
     }
   }, []);
 
+  // Load the user's cross-mini-app order history.
+  const loadOrders = useCallback(async () => {
+    try {
+      setOrders((await api.orders()).orders);
+    } catch {
+      /* history is best-effort */
+    }
+  }, []);
+
   // Resolve an existing session (cookie) on mount.
   useEffect(() => {
     (async () => {
       try {
         const { user } = await api.me();
         setUser(user);
-        await Promise.all([loadAccounts(), loadCurrencies(), loadApps()]);
+        await Promise.all([loadAccounts(), loadCurrencies(), loadApps(), loadOrders()]);
       } catch {
         /* not signed in */
       } finally {
         setBooting(false);
       }
     })();
-  }, [loadAccounts, loadCurrencies, loadApps]);
+  }, [loadAccounts, loadCurrencies, loadApps, loadOrders]);
 
   const onAuthed = async (u: User) => {
     setError(null);
     setUser(u);
-    await Promise.all([loadAccounts(), loadApps()]);
+    await Promise.all([loadAccounts(), loadCurrencies(), loadApps(), loadOrders()]);
   };
 
   const logout = async () => {
@@ -74,25 +87,11 @@ export function App() {
     setAccounts([]);
     setCurrencies([]);
     setApps([]);
+    setOrders([]);
+    setTab("home");
   };
 
   if (booting) return <div className="center muted">Loading…</div>;
-
-  // A running mini-app takes over the viewport; the shell handles its bridge and
-  // refreshes balances when it closes (a payment may have changed them).
-  if (user && openApp) {
-    return (
-      <MiniAppHost
-        user={user}
-        src={openApp.miniappUrl || FALLBACK_MINIAPP_URL}
-        serviceId={openApp.serviceId}
-        onClose={() => {
-          setOpenApp(null);
-          void loadAccounts();
-        }}
-      />
-    );
-  }
 
   return (
     <div className="app">
@@ -114,30 +113,62 @@ export function App() {
           <AuthScreen onAuthed={onAuthed} onError={setError} />
         ) : (
           <>
-            <Accounts user={user} accounts={accounts} currencies={currencies} onRefresh={loadAccounts} />
-            <section className="apps">
-              <h2>Apps</h2>
-              {apps.length === 0 ? (
-                <div className="muted small">No apps available yet.</div>
-              ) : (
-                apps.map((app) => (
-                  <div className="card app-tile" key={app.serviceId}>
-                    <div>
-                      <div className="strong">
-                        {app.iconUrl || "🧩"} {app.name}
+            <div className="tabs">
+              <button className={tab === "home" ? "tab on" : "tab"} onClick={() => setTab("home")}>
+                Home
+              </button>
+              <button className={tab === "orders" ? "tab on" : "tab"} onClick={() => setTab("orders")}>
+                My orders
+              </button>
+            </div>
+
+            {tab === "home" ? (
+              <>
+                <Accounts user={user} accounts={accounts} currencies={currencies} onRefresh={loadAccounts} />
+                <section className="apps">
+                  <h2>Apps</h2>
+                  {apps.length === 0 ? (
+                    <div className="muted small">No apps available yet.</div>
+                  ) : (
+                    apps.map((app) => (
+                      <div className="card app-tile" key={app.serviceId}>
+                        <div>
+                          <div className="strong">
+                            {app.iconUrl || "🧩"} {app.name}
+                          </div>
+                          {app.description && <div className="muted small">{app.description}</div>}
+                        </div>
+                        <button className="primary" onClick={() => setOpenApp(app)}>
+                          Open
+                        </button>
                       </div>
-                      {app.description && <div className="muted small">{app.description}</div>}
-                    </div>
-                    <button className="primary" onClick={() => setOpenApp(app)}>
-                      Open
-                    </button>
-                  </div>
-                ))
-              )}
-            </section>
+                    ))
+                  )}
+                </section>
+              </>
+            ) : (
+              <Orders orders={orders} apps={apps} currencies={currencies} onRefresh={loadOrders} />
+            )}
           </>
         )}
       </main>
+
+      {/* A running mini-app opens as a panel over the cabinet (the dashboard
+          stays mounted underneath). Closing it refreshes balances and orders,
+          since a payment inside may have changed them. */}
+      {user && openApp && (
+        <MiniAppHost
+          user={user}
+          src={openApp.miniappUrl || FALLBACK_MINIAPP_URL}
+          serviceId={openApp.serviceId}
+          title={openApp.name}
+          onClose={() => {
+            setOpenApp(null);
+            void loadAccounts();
+            void loadOrders();
+          }}
+        />
+      )}
     </div>
   );
 }

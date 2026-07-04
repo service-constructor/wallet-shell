@@ -191,6 +191,19 @@ app.get("/api/apps", async (req, res) => {
   res.json({ apps: data.services ?? [] });
 });
 
+// The user's orders across every mini-app, newest first. The platform scopes
+// them to the authenticated user via the forwarded JWT (no userId is sent).
+app.get("/api/orders", async (req, res) => {
+  const token = requireSession(req, res);
+  if (!token) return;
+  const upstream = await fetch(`${PLATFORM_BASE}/v1/orders`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = (await upstream.json().catch(() => ({}))) as { orders?: unknown };
+  if (!upstream.ok) return res.status(upstream.status).json({ error: "orders lookup failed" });
+  res.json({ orders: data.orders ?? [] });
+});
+
 // openService prepares an encrypted user context for launching a mini-app. It
 // fetches the service's X25519 public key from the platform, then sealed-box
 // encrypts the authenticated user's id: only the service (holding the private

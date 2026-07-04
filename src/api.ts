@@ -40,6 +40,24 @@ export interface App {
   miniappUrl?: string;
 }
 
+// Order is one entry in the user's cross-mini-app order history (the platform's
+// Order view). The mini-app is identified only by serviceId; the UI joins it to
+// the app catalog (api.apps) to show a name and icon.
+export interface Order {
+  orderId: string;
+  serviceId: string;
+  walletId?: string;
+  amount?: string;
+  currencyId?: number;
+  fee?: string;
+  net?: string;
+  externalRef?: string;
+  // One of ORDER_STATE_* (e.g. ORDER_STATE_COMPLETED).
+  state: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
@@ -69,6 +87,7 @@ export const api = {
   accounts: () => get<{ accounts: Account[] }>("/api/accounts"),
   currencies: () => get<{ currencies: Currency[] }>("/api/currencies"),
   apps: () => get<{ apps: App[] }>("/api/apps"),
+  orders: () => get<{ orders: Order[] }>("/api/orders"),
   deposit: (memo: string, ref: string, amount: string, currencyId: number) =>
     post<{ userId: string; applied: boolean }>("/api/deposit", { memo, ref, amount, currencyId }),
   prepare: (quote: unknown) => post<PreparePreview>("/api/prepare", { quote }),

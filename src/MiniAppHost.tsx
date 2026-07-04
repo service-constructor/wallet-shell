@@ -11,11 +11,14 @@ export function MiniAppHost({
   user,
   src,
   serviceId,
+  title,
   onClose,
 }: {
   user: User;
   src: string;
   serviceId: string;
+  // Display name shown in the panel header (the mini-app's catalog name).
+  title: string;
   onClose: () => void;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -98,21 +101,34 @@ export function MiniAppHost({
     };
   }, [serviceId]);
 
+  // Close when the user clicks the dimmed backdrop (but not when clicking inside
+  // the panel itself) or presses Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="host">
-      <div className="host-bar">
-        <button className="ghost" onClick={onClose}>
-          ← Back to cabinet
-        </button>
-        <span className="muted small ellipsis">{src}</span>
+    <div className="host-backdrop" onMouseDown={onClose}>
+      {/* Stop propagation so clicks inside the panel don't close it. */}
+      <div className="host-panel" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="host-bar">
+          <span className="strong ellipsis">{title}</span>
+          <button className="host-close" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        {error && <div className="error">{error}</div>}
+        {ready ? (
+          <iframe ref={frameRef} className="host-frame" src={src} title="mini-app" />
+        ) : (
+          !error && <div className="center muted">Opening…</div>
+        )}
+        {consent && <ConsentModal preview={consent} onDecision={onConsentDecision} />}
       </div>
-      {error && <div className="error">{error}</div>}
-      {ready ? (
-        <iframe ref={frameRef} className="host-frame" src={src} title="mini-app" />
-      ) : (
-        !error && <div className="center muted">Opening…</div>
-      )}
-      {consent && <ConsentModal preview={consent} onDecision={onConsentDecision} />}
     </div>
   );
 }
